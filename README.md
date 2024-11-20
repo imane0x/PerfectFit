@@ -21,7 +21,7 @@ Using your description and/or an image of what you are searching for, PerfectFit
 
 | **Demo 1: Text-based Search** | **Demo 2: Hybrid search (Product Exists)** | **Demo 3: Hybrid Search (Product Doesn't Exist)** |
 |:-----------------------------:|:-------------------------:|:----------------------------:|
-|  [Watch Demo 1](Demo.mp4) | [Watch Demo 2](demo2.mp4) | [Watch Demo 3](demo3.mp4) |
+|  ![Watch Demo 1](demo1.gif) | ![Watch Demo 2](demo2.gif) | ![Watch Demo 3](demo3.gif) |
 
 
 ## 🌐 Getting Started
