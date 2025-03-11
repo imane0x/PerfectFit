@@ -11,7 +11,7 @@ Using your description and/or an image of what you are searching for, PerfectFit
 
 ## 🛠️ Technical Details
 - LLaVA: Uses LLaVA to generate text summaries from images. These summaries are embedded and stored alongside references to the raw images.
-- CLIP: Employs CLIP for embedding images and text into the vector space. The embeddings are stored in Qdrant, a high-performance vector database. A multi-vector retriever is used to retrieve relevant image-text pairs based on user queries.
+- CLIP: Employs CLIP for embedding images into the vector space. The embeddings are stored in Qdrant, a high-performance vector database. A multi-vector retriever is used to retrieve relevant image-text pairs based on user queries.
 - Gemini API: Integrates the Gemini API to automatically generate captions for user-uploaded images, enhancing multimodal interaction and improving the user experience.
 - SmolLM-Instruct: Uses SmolLM-Instruct, a small language model, to generate human-like replies to user queries.
 
