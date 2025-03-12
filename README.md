@@ -10,7 +10,7 @@ Using your description and/or an image of what you are searching for, PerfectFit
 - Visual Search: Got an image of what you’re after? Upload it, and PerfectFit will locate the closest matches from the available products, saving you time and effort.
 
 ## 🛠️ Technical Details
-- LLaVA: Uses LLaVA to generate text summaries from images. These summaries are embedded and stored alongside references to the raw images.
+- LLaVA: Assigning this model to the multi_modal_llm parameter in the index.as_query_engine() method enables the QueryEngine to handle multi-modal queries, allowing it to interpret and respond to inputs that include both textual and visual information.
 - CLIP: Employs CLIP for embedding images into the vector space. The embeddings are stored in Qdrant, a high-performance vector database. A multi-vector retriever is used to retrieve relevant image-text pairs based on user queries.
 - Gemini API: Integrates the Gemini API to automatically generate captions for user-uploaded images, enhancing multimodal interaction and improving the user experience.
 - SmolLM-Instruct: Uses SmolLM-Instruct, a small language model, to generate human-like replies to user queries.
