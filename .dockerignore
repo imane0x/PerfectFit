@@ -1,0 +1,9 @@
+.git
+tests
+.venv
+__pycache__
+*.mp4
+*.gif
+data
+qdrant_db
+.env

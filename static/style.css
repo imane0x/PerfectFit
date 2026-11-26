@@ -317,3 +317,46 @@ body {
     margin: 5px 0;
     border-radius: 8px;
 }
+
+/* Product cards returned by the assistant */
+.messages__item .attachment {
+    width: 50%;
+    margin: 10px 0;
+    border-radius: 8px;
+}
+
+.product-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.product-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    background: #fff;
+    border-radius: 8px;
+    color: #222;
+    text-decoration: none;
+    font-size: 0.8rem;
+    line-height: 1.25;
+}
+
+.product-card img {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: contain;
+    background: #f4f4f4;
+    border-radius: 6px;
+}
+
+.product-card__price {
+    font-weight: 600;
+}
+
+a.product-card:hover {
+    outline: 2px solid #581B98;
+}

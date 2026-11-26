@@ -1,19 +1,17 @@
-from src.query_engine import get_query_engine
+"""Command-line chat for quick testing: python chat.py"""
+import logging
 
-def get_response(msg):
-    query_engine = get_query_engine()
-    response = query_engine.query(msg)
-    print(response.metadata["text_nodes"][0].score)
-    get_image = False
-    if response.metadata["text_nodes"][0].score>=0.55:
-        response.metadata["text_nodes"][0].metadata["file_path"]
-        get_image = True
-        
-    return response,get_image
+from src.assistant import get_assistant
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    assistant = get_assistant()
     print("Let's chat! (type 'quit' to exit)")
     while True:
         sentence = input("You: ")
-        resp = get_response(sentence)
-    
+        if sentence.strip().lower() == "quit":
+            break
+        turn = assistant.ask(sentence)
+        print("PerfectFit:", turn.answer)
+        for p in turn.products:
+            print("  -", p.title, f"({p.id})")

@@ -73,7 +73,7 @@ class Chatbox {
         this.messages.push({ ...this.userData });
 
         // Send message to the server
-        fetch('http://127.0.0.1:5000/predict', {
+        fetch(`${window.SCRIPT_ROOT || ''}/predict`, {
             method: 'POST',
             body: JSON.stringify({
                 contents: [
@@ -85,70 +85,85 @@ class Chatbox {
                     }
                 ]
             }),
-            mode: 'cors',
             headers: {
                 'Content-Type': 'application/json'
             }
         })
         .then(response => response.json())
         .then(data => {
-            // // Set bot message and update chat
-             this.botData.message = data.answer;
-     
-            if (data.file && data.file.data && data.file.mime_type) {
-                this.botData.file.data = data.file.data.split(",")[1];
-                this.botData.file.mime_type = data.file.mime_type;
-          
-
-
-
-            } else {
-                // Handle the case when file_info is not present or incomplete
-                this.botData.file = null;
-                this.botData.mime_type = null;
-            }
-
-            console.log(this.botData)
-            this.messages.push({ ...this.botData});
-            this.updateChatText(chatBox);
-            textField.value = ''; // Clear the input field
-            this.resetUserData(); // Reset user data after sending
-            this.resetbotData();
-            this.clearImagePreview(); // Remove the preview image
+            this.messages.push({
+                name: "PerfectFit",
+                message: data.answer,
+                file: null,
+                products: Array.isArray(data.products) ? data.products : []
+            });
         })
         .catch(error => {
             console.error('Error:', error);
+            this.messages.push({ name: "PerfectFit", message: "Sorry, I couldn't reach the server. Please try again.", file: null });
+        })
+        .finally(() => {
             this.updateChatText(chatBox);
             textField.value = '';
             this.resetUserData();
+            this.resetbotData();
             this.clearImagePreview();
         });
     }
 
+    updateChatText(chatBox) {
+        // Build nodes with textContent so model output or product text can never inject HTML.
+        const chatMessage = chatBox.querySelector('.chatbox__messages');
+        chatMessage.replaceChildren();
+        this.messages.slice().reverse().forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'messages__item ' + (item.name === "PerfectFit" ? 'messages__item--visitor' : 'messages__item--operator');
+            const text = document.createElement('p');
+            text.textContent = item.message || '';
+            div.appendChild(text);
+            if (item.file && item.file.data && /^image\/(jpeg|png|webp)$/.test(item.file.mime_type || '')) {
+                const img = document.createElement('img');
+                img.src = `data:${item.file.mime_type};base64,${item.file.data}`;
+                img.className = 'attachment';
+                div.appendChild(img);
+            }
+            if (item.products && item.products.length) {
+                div.appendChild(this.productCards(item.products));
+            }
+            chatMessage.appendChild(div);
+        });
+    }
 
-
-updateChatText(chatBox) {
-    const chatMessage = chatBox.querySelector('.chatbox__messages');
-    chatMessage.innerHTML = this.messages.slice().reverse().map(item => {
-        const messageClass = item.name === "PerfectFit" ? 'messages__item--visitor' : 'messages__item--operator';
-        const textBeforeImage = "<p> Here is the product's image:</p>"; 
-
-        return `
-            <div class="messages__item ${messageClass}">
-                ${item.message}
-                ${item.file && item.file.data ? `
-                    ${textBeforeImage} 
-                    <img src="data:${item.file.mime_type};base64,${item.file.data}" class="attachment" style="width: 50%" margin-top: 10px; margin-bottom: 10px;" />` : ''}
-            </div>
-        `;
-    }).join('');
-}
-
-
-
-
-
-
+    productCards(products) {
+        const row = document.createElement('div');
+        row.className = 'product-cards';
+        products.forEach(p => {
+            const safeUrl = typeof p.url === 'string' && /^https?:\/\//.test(p.url) ? p.url : null;
+            const card = document.createElement(safeUrl ? 'a' : 'div');
+            card.className = 'product-card';
+            if (safeUrl) {
+                card.href = safeUrl;
+                card.target = '_blank';
+                card.rel = 'noopener noreferrer';
+            }
+            const img = document.createElement('img');
+            img.src = p.image_url;
+            img.alt = p.title || '';
+            img.loading = 'lazy';
+            const title = document.createElement('span');
+            title.className = 'product-card__title';
+            title.textContent = p.title || '';
+            card.append(img, title);
+            if (typeof p.price === 'number') {
+                const price = document.createElement('span');
+                price.className = 'product-card__price';
+                price.textContent = `${p.price.toFixed(2)} ${p.currency || ''}`.trim();
+                card.appendChild(price);
+            }
+            row.appendChild(card);
+        });
+        return row;
+    }
 
     onFileChange(fileInput) {
         const file = fileInput.files[0];
