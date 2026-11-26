@@ -1,0 +1,25 @@
+services:
+  ollama:
+    image: ollama/ollama
+    volumes:
+      - ollama:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  app:
+    build: .
+    env_file: .env
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    volumes:
+      - ./data:/app/data
+      - ./qdrant_mm_db:/app/qdrant_mm_db
+      - hf-cache:/root/.cache
+    ports:
+      - "5000:5000"
+    depends_on:
+      - ollama
+
+volumes:
+  ollama:
+  hf-cache:

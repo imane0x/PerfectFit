@@ -1,94 +1,96 @@
-from flask import Flask, render_template, request, jsonify
-from chat import get_response
-from src.image_understanding import generate_caption_image
 import base64
+import binascii
+import logging
 import mimetypes
-# from flask_cors import CORS
+import os
+
+from flask import Flask, jsonify, render_template, request
+
+from src.config import ALLOWED_IMAGE_TYPES, MAX_UPLOAD_BYTES
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("perfectfit")
+
 app = Flask(__name__)
-# CORS(app)
+# Base64 makes uploads ~33% larger than the raw image, plus JSON overhead.
+app.config["MAX_CONTENT_LENGTH"] = int(MAX_UPLOAD_BYTES * 1.4) + 64 * 1024
+
+
+def get_response(text):
+    from chat import get_response as _get_response
+
+    return _get_response(text)
+
+
+def generate_caption_image(image_bytes, mime_type):
+    from src.image_understanding import generate_caption_image as _caption
+
+    return _caption(image_bytes, mime_type)
+
+
+def parse_request(data):
+    """Extract (text, image_bytes, mime_type) from the Gemini-style payload the frontend sends."""
+    contents = data.get("contents") if isinstance(data, dict) else None
+    if not contents or not isinstance(contents, list):
+        raise ValueError("No contents provided")
+    text, image_bytes, mime_type = "", None, None
+    for part in contents[0].get("parts", []):
+        if part.get("text"):
+            text = str(part["text"])
+        elif isinstance(part.get("inline_data"), dict):
+            mime_type = part["inline_data"].get("mime_type")
+            if mime_type not in ALLOWED_IMAGE_TYPES:
+                raise ValueError("Unsupported image type. Use JPEG, PNG or WebP.")
+            try:
+                image_bytes = base64.b64decode(part["inline_data"].get("data") or "", validate=True)
+            except (binascii.Error, ValueError):
+                raise ValueError("Image data is not valid base64")
+            if not image_bytes:
+                raise ValueError("Image is empty")
+            if len(image_bytes) > MAX_UPLOAD_BYTES:
+                raise ValueError("Image is too large")
+    return text, image_bytes, mime_type
+
+
+def encode_image(path):
+    mime_type, _ = mimetypes.guess_type(path)
+    with open(path, "rb") as f:
+        return {"data": base64.b64encode(f.read()).decode("ascii"), "mime_type": mime_type or "image/jpeg"}
+
+
 @app.get("/")
 def index_get():
     return render_template("base.html")
 
+
+@app.get("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
 @app.post("/predict")
 def predict():
     try:
-        # Extract incoming JSON data
-        data = request.get_json()
-        
-        # Check for contents
-        contents = data.get("contents", [])
-        if not contents:
-            return jsonify({"answer": "No contents provided"}), 400
+        text, image_bytes, mime_type = parse_request(request.get_json(silent=True))
+    except ValueError as e:
+        return jsonify({"answer": str(e)}), 400
 
-        # Initialize variables for text and image data
-        text = ""
-        image_data = None
-        mime_type = None
-        image_path = None
-        # Extract parts (text and image data)
-        parts = contents[0].get("parts", [])
-        for part in parts:
-            if "text" in part:
-                text = part["text"]
-            elif "inline_data" in part:
-                image_data = part["inline_data"].get("data")  # Base64 image data
-                mime_type = part["inline_data"].get("mime_type")  # MIME type of the image
-        # Generate a caption if there's image data, and append it to the text
-        if image_data is not None:
-            print("Received image data, generating caption.")
-            # Decode the Base64 image
-            image_bytes = base64.b64decode(image_data)
-            # Save the image to a file
-            file_path = f"{data.get('name', 'image')}.jpeg"
-            with open(file_path, "wb") as img_file:
-                img_file.write(image_bytes)
-            caption = generate_caption_image(file_path)  # Assuming it returns the caption text directly
-            linking_text = "Here is how it looks like : "
-            text += linking_text  # Append the caption to the original text
-            text+= caption
-      
-        # Check if we have text (original text + caption if image was present)
+    try:
+        if image_bytes is not None:
+            caption = generate_caption_image(image_bytes, mime_type)
+            logger.info("Image caption: %s", caption)
+            text = f"{text} Here is how it looks: {caption}".strip()
+
         if not text.strip():
             return jsonify({"answer": "No valid text or image data found"}), 400
 
-        # Generate a response using get_response with the combined text
-        print("Combined text for response generation:", text)
-        response, get_image = get_response(text)  # Assuming it returns an object with a `response` attribute
-        answer = response.response
-        
-        if get_image == True :
-            image_path  = response.metadata["image_nodes"][0].metadata["file_path"]
-        result = {"answer": answer}
-        file_info = {
-            "data": None,
-            "mime_type": None
-        }  
-        if image_path:
-            print(image_path)
-            with open(image_path, "rb") as img_file:
-                # Convert image to Base64
-                encoded_image = base64.b64encode(img_file.read()).decode("utf-8")
-                mime_type, _ = mimetypes.guess_type(image_path)
-                
-                # Set data and mime_type in the desired format
-                file_info["data"] = f"data:{mime_type};base64,{encoded_image}"
-                print(mime_type)
-                file_info["mime_type"] = mime_type
-
-        # Return a structured JSON response
-        result = {
-            "answer": answer,
-            "file": file_info
-        }
-
-        return jsonify(result)
-    
-    
-    except Exception as e:
-        print("Error during prediction:", e)
+        answer, image_path = get_response(text)
+        file_info = encode_image(image_path) if image_path else None
+        return jsonify({"answer": answer, "file": file_info})
+    except Exception:
+        logger.exception("Error during prediction")
         return jsonify({"answer": "An error occurred while processing your request"}), 500
 
-    
-if __name__=="__main__":
-    app.run(debug=True)
+
+if __name__ == "__main__":
+    app.run(debug=os.getenv("FLASK_DEBUG") == "1")

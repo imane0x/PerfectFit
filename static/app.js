@@ -73,7 +73,7 @@ class Chatbox {
         this.messages.push({ ...this.userData });
 
         // Send message to the server
-        fetch('http://127.0.0.1:5000/predict', {
+        fetch(`${window.SCRIPT_ROOT || ''}/predict`, {
             method: 'POST',
             body: JSON.stringify({
                 contents: [
@@ -85,70 +85,54 @@ class Chatbox {
                     }
                 ]
             }),
-            mode: 'cors',
             headers: {
                 'Content-Type': 'application/json'
             }
         })
         .then(response => response.json())
         .then(data => {
-            // // Set bot message and update chat
-             this.botData.message = data.answer;
-     
-            if (data.file && data.file.data && data.file.mime_type) {
-                this.botData.file.data = data.file.data.split(",")[1];
-                this.botData.file.mime_type = data.file.mime_type;
-          
-
-
-
-            } else {
-                // Handle the case when file_info is not present or incomplete
-                this.botData.file = null;
-                this.botData.mime_type = null;
-            }
-
-            console.log(this.botData)
-            this.messages.push({ ...this.botData});
-            this.updateChatText(chatBox);
-            textField.value = ''; // Clear the input field
-            this.resetUserData(); // Reset user data after sending
-            this.resetbotData();
-            this.clearImagePreview(); // Remove the preview image
+            this.botData.message = data.answer;
+            this.botData.file = (data.file && data.file.data && data.file.mime_type)
+                ? { data: data.file.data, mime_type: data.file.mime_type }
+                : null;
+            this.messages.push({ ...this.botData });
         })
         .catch(error => {
             console.error('Error:', error);
+            this.messages.push({ name: "PerfectFit", message: "Sorry, I couldn't reach the server. Please try again.", file: null });
+        })
+        .finally(() => {
             this.updateChatText(chatBox);
             textField.value = '';
             this.resetUserData();
+            this.resetbotData();
             this.clearImagePreview();
         });
     }
 
-
-
-updateChatText(chatBox) {
-    const chatMessage = chatBox.querySelector('.chatbox__messages');
-    chatMessage.innerHTML = this.messages.slice().reverse().map(item => {
-        const messageClass = item.name === "PerfectFit" ? 'messages__item--visitor' : 'messages__item--operator';
-        const textBeforeImage = "<p> Here is the product's image:</p>"; 
-
-        return `
-            <div class="messages__item ${messageClass}">
-                ${item.message}
-                ${item.file && item.file.data ? `
-                    ${textBeforeImage} 
-                    <img src="data:${item.file.mime_type};base64,${item.file.data}" class="attachment" style="width: 50%" margin-top: 10px; margin-bottom: 10px;" />` : ''}
-            </div>
-        `;
-    }).join('');
-}
-
-
-
-
-
-
+    updateChatText(chatBox) {
+        // Build nodes with textContent so model output or product text can never inject HTML.
+        const chatMessage = chatBox.querySelector('.chatbox__messages');
+        chatMessage.replaceChildren();
+        this.messages.slice().reverse().forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'messages__item ' + (item.name === "PerfectFit" ? 'messages__item--visitor' : 'messages__item--operator');
+            const text = document.createElement('p');
+            text.textContent = item.message || '';
+            div.appendChild(text);
+            if (item.file && item.file.data && /^image\/(jpeg|png|webp|gif)$/.test(item.file.mime_type || '')) {
+                const caption = document.createElement('p');
+                caption.textContent = item.name === "PerfectFit" ? "Here is the product's image:" : '';
+                const img = document.createElement('img');
+                img.src = `data:${item.file.mime_type};base64,${item.file.data}`;
+                img.className = 'attachment';
+                img.style.cssText = 'width: 50%; margin-top: 10px; margin-bottom: 10px;';
+                if (caption.textContent) div.appendChild(caption);
+                div.appendChild(img);
+            }
+            chatMessage.appendChild(div);
+        });
+    }
 
     onFileChange(fileInput) {
         const file = fileInput.files[0];
