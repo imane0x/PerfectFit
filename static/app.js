@@ -91,11 +91,12 @@ class Chatbox {
         })
         .then(response => response.json())
         .then(data => {
-            this.botData.message = data.answer;
-            this.botData.file = (data.file && data.file.data && data.file.mime_type)
-                ? { data: data.file.data, mime_type: data.file.mime_type }
-                : null;
-            this.messages.push({ ...this.botData });
+            this.messages.push({
+                name: "PerfectFit",
+                message: data.answer,
+                file: null,
+                products: Array.isArray(data.products) ? data.products : []
+            });
         })
         .catch(error => {
             console.error('Error:', error);
@@ -120,18 +121,48 @@ class Chatbox {
             const text = document.createElement('p');
             text.textContent = item.message || '';
             div.appendChild(text);
-            if (item.file && item.file.data && /^image\/(jpeg|png|webp|gif)$/.test(item.file.mime_type || '')) {
-                const caption = document.createElement('p');
-                caption.textContent = item.name === "PerfectFit" ? "Here is the product's image:" : '';
+            if (item.file && item.file.data && /^image\/(jpeg|png|webp)$/.test(item.file.mime_type || '')) {
                 const img = document.createElement('img');
                 img.src = `data:${item.file.mime_type};base64,${item.file.data}`;
                 img.className = 'attachment';
-                img.style.cssText = 'width: 50%; margin-top: 10px; margin-bottom: 10px;';
-                if (caption.textContent) div.appendChild(caption);
                 div.appendChild(img);
+            }
+            if (item.products && item.products.length) {
+                div.appendChild(this.productCards(item.products));
             }
             chatMessage.appendChild(div);
         });
+    }
+
+    productCards(products) {
+        const row = document.createElement('div');
+        row.className = 'product-cards';
+        products.forEach(p => {
+            const safeUrl = typeof p.url === 'string' && /^https?:\/\//.test(p.url) ? p.url : null;
+            const card = document.createElement(safeUrl ? 'a' : 'div');
+            card.className = 'product-card';
+            if (safeUrl) {
+                card.href = safeUrl;
+                card.target = '_blank';
+                card.rel = 'noopener noreferrer';
+            }
+            const img = document.createElement('img');
+            img.src = p.image_url;
+            img.alt = p.title || '';
+            img.loading = 'lazy';
+            const title = document.createElement('span');
+            title.className = 'product-card__title';
+            title.textContent = p.title || '';
+            card.append(img, title);
+            if (typeof p.price === 'number') {
+                const price = document.createElement('span');
+                price.className = 'product-card__price';
+                price.textContent = `${p.price.toFixed(2)} ${p.currency || ''}`.trim();
+                card.appendChild(price);
+            }
+            row.appendChild(card);
+        });
+        return row;
     }
 
     onFileChange(fileInput) {

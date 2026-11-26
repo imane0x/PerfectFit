@@ -13,7 +13,7 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
     volumes:
       - ./data:/app/data
-      - ./qdrant_mm_db:/app/qdrant_mm_db
+      - ./qdrant_db:/app/qdrant_db
       - hf-cache:/root/.cache
     ports:
       - "5000:5000"

@@ -1,8 +1,9 @@
 .git
+tests
 .venv
 __pycache__
 *.mp4
 *.gif
 data
-qdrant_mm_db
+qdrant_db
 .env

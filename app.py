@@ -1,10 +1,9 @@
 import base64
 import binascii
 import logging
-import mimetypes
 import os
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, send_file
 
 from src.config import ALLOWED_IMAGE_TYPES, MAX_UPLOAD_BYTES
 
@@ -16,16 +15,10 @@ app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = int(MAX_UPLOAD_BYTES * 1.4) + 64 * 1024
 
 
-def get_response(text):
-    from chat import get_response as _get_response
+def get_assistant():
+    from src.assistant import get_assistant as _get
 
-    return _get_response(text)
-
-
-def generate_caption_image(image_bytes, mime_type):
-    from src.image_understanding import generate_caption_image as _caption
-
-    return _caption(image_bytes, mime_type)
+    return _get()
 
 
 def parse_request(data):
@@ -52,10 +45,17 @@ def parse_request(data):
     return text, image_bytes, mime_type
 
 
-def encode_image(path):
-    mime_type, _ = mimetypes.guess_type(path)
-    with open(path, "rb") as f:
-        return {"data": base64.b64encode(f.read()).decode("ascii"), "mime_type": mime_type or "image/jpeg"}
+def product_card(p):
+    return {
+        "id": p.id,
+        "title": p.title,
+        "price": p.price,
+        "currency": p.currency,
+        "color": p.color,
+        "category": p.category,
+        "url": p.url,
+        "image_url": f"/products/{p.id}/image",
+    }
 
 
 @app.get("/")
@@ -68,25 +68,35 @@ def health():
     return jsonify({"status": "ok"})
 
 
+@app.get("/products/<product_id>/image")
+def product_image(product_id):
+    # Look the product up by id; the client never supplies a file path.
+    catalog = get_assistant().catalog
+    product = catalog.get(product_id)
+    path = catalog.image_path(product) if product else None
+    if path is None:
+        abort(404)
+    return send_file(path, max_age=86400)
+
+
 @app.post("/predict")
 def predict():
     try:
-        text, image_bytes, mime_type = parse_request(request.get_json(silent=True))
+        text, image_bytes, _mime_type = parse_request(request.get_json(silent=True))
     except ValueError as e:
         return jsonify({"answer": str(e)}), 400
+    if not text.strip() and image_bytes is None:
+        return jsonify({"answer": "No valid text or image data found"}), 400
 
     try:
-        if image_bytes is not None:
-            caption = generate_caption_image(image_bytes, mime_type)
-            logger.info("Image caption: %s", caption)
-            text = f"{text} Here is how it looks: {caption}".strip()
-
-        if not text.strip():
-            return jsonify({"answer": "No valid text or image data found"}), 400
-
-        answer, image_path = get_response(text)
-        file_info = encode_image(image_path) if image_path else None
-        return jsonify({"answer": answer, "file": file_info})
+        turn = get_assistant().ask(text.strip(), image_bytes)
+        return jsonify(
+            {
+                "answer": turn.answer,
+                "exact_match": turn.exact_match,
+                "products": [product_card(p) for p in turn.products],
+            }
+        )
     except Exception:
         logger.exception("Error during prediction")
         return jsonify({"answer": "An error occurred while processing your request"}), 500

@@ -1,22 +1,36 @@
 """Index the product catalog into the local Qdrant database.
 
-Usage: python ingest.py [path/to/catalog]
-The folder can contain product images (.jpg/.png/...) and text files (.txt/.md/.csv/...) with descriptions.
+Usage: python ingest.py [path/to/products.jsonl]
+Re-running rebuilds the collection, so products are never duplicated.
 """
-import shutil
 import sys
 
-from src.config import DATA_PATH, QDRANT_PATH
+from src.catalog import Catalog
+from src.config import CATALOG_FILE, QDRANT_PATH
 
 
 def main():
-    data_path = sys.argv[1] if len(sys.argv) > 1 else DATA_PATH
-    # Rebuild from scratch so re-running never duplicates products.
-    shutil.rmtree(QDRANT_PATH, ignore_errors=True)
-    from src.multi_modal_index import build_index
+    catalog = Catalog.load(sys.argv[1] if len(sys.argv) > 1 else CATALOG_FILE)
+    products, images = [], []
+    for p in catalog.products.values():
+        path = catalog.image_path(p)
+        if path is None:
+            print(f"skipping {p.id}: image {p.image!r} not found inside {catalog.root}")
+            continue
+        products.append(p)
+        images.append(str(path))
+    if not products:
+        sys.exit("No products with images to index.")
 
-    build_index(data_path)
-    print(f"Indexed catalog from {data_path} into {QDRANT_PATH}")
+    from src.embeddings import get_embedders
+    from src.search import get_client, index_products
+
+    print(f"Embedding {len(products)} products (the first run downloads the models)...")
+    index_products(
+        get_client(), get_embedders(), products, images,
+        progress=lambda done, total: print(f"  {done}/{total}", flush=True),
+    )
+    print(f"Indexed {len(products)} products into {QDRANT_PATH}")
 
 
 if __name__ == "__main__":
